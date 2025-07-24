@@ -1,0 +1,43 @@
+###  1. Crea utente con ID personalizzato
+POST http://localhost:5055/User
+Content-Type: application/json
+
+{
+  "userId": "11111111-1111-1111-1111-111111111111",
+  "name": "Mario Rossi"
+}
+
+###  2. Crea appuntamento con ID personalizzato (collega all'utente sopra)
+POST http://localhost:5055/Appointments
+Content-Type: application/json
+
+{
+  "appointmentId": "22222223-2223-2223-2223-222222222223",
+  "userId": "11111111-1111-1111-1111-111111111111",
+  "title": "Visita dentista",
+  "description": "Controllo dei denti",
+  "date": "2025-07-25T09:00:00Z"
+}
+
+###  3. Recupera appuntamento
+GET http://localhost:5055/Appointments/22222222-2222-2222-2222-222222222222
+
+###  2. Crea appuntamento con ID personalizzato (collega all'utente sopra)
+POST http://localhost:5055/Appointments
+Content-Type: application/json
+
+{
+  "appointmentId": "22222222-2222-2222-2222-222222222222",
+  "userId": "11111111-1111-1111-1111-111111111111",
+  "title": "Visita oculistica",
+  "description": "Controllo della vista",
+  "date": "2025-07-25T09:00:00Z"
+}
+###  4. Recupera tutti gli appuntamenti associati all’utente
+GET http://localhost:5055/User/11111111-1111-1111-1111-111111111111/appointments
+
+###  5. Cancella appuntamento
+DELETE http://localhost:5055/Appointments/22222222-2222-2222-2222-222222222222
+
+###  6. Recupera utente (per verificare ancora presente dopo cancellazione)
+GET http://localhost:5055/User/11111111-1111-1111-1111-111111111111

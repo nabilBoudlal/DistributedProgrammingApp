@@ -6,7 +6,9 @@ namespace GrainInterfaces
 
     public interface IAppointmentGrain : IGrainWithGuidKey
     {
-        Task SetDetails(string title,DateTime date, string description);
-        Task<(string Title, DateTime Date, string Description)> GetDetails();
+        Task SetDetails(string title, DateTime date, string description, Guid userId);
+
+        Task<(string Title, DateTime Date, string Description, Guid UserId)> GetDetails();
+        Task ClearStateAsync();
     }
 }

@@ -9,9 +9,9 @@ namespace DistributedAppExamUnicam.GrainInterfaces
         Task<string> GetSpecializationAsync();
         Task SetSpecializationAsync(string specialization);
 
-        Task DefineAvailability(List<TimeSlot> slots); // Modified to accept a List<TimeSlot>
+        Task DefineAvailability(List<TimeSlot> slots); 
         Task<List<TimeSlot>> GetAvailableSlots(DateTime from, DateTime to);
-        Task<List<TimeSlot>> GetAllTimeSlots(); // Useful for debugging or admin views
+        Task<List<TimeSlot>> GetAllTimeSlots(); 
 
         Task<ReserveTimeSlotResult> TryReserveTimeSlot(Guid slotId, Guid appointmentId, Guid patientId);
         Task ReleaseTimeSlot(Guid slotId, Guid appointmentId);
@@ -24,7 +24,7 @@ namespace DistributedAppExamUnicam.GrainInterfaces
         Success,
         NotFound,
         AlreadyReserved,
-        Overlap // If your logic would check for overlapping existing appointments
+        Overlap 
     }
 
 }

@@ -12,21 +12,20 @@ namespace DistributedAppExamUnicam.Sagas
 
         // --- STATI ---
         // Questi rappresentano i diversi punti nel ciclo di vita della prenotazione.
-        public State Initial { get; private set; } // Stato iniziale di ogni saga
-        public State AwaitingSlotReservation { get; private set; } // In attesa che lo slot sia riservato dal DoctorGrain
-        public State AppointmentInitialized { get; private set; } // L'AppointmentGrain è stato creato, in attesa di conferma finale
-        public State Confirmed { get; private set; } // L'appuntamento è stato confermato
-        public State Canceled { get; private set; } // L'appuntamento è stato annullato
-        public State Completed { get; private set; } // L'appuntamento è stato completato (dopo la visita)
-        public State Faulted { get; private set; } // Il processo di booking è fallito
+        public State Initial { get; private set; } 
+        public State AwaitingSlotReservation { get; private set; } 
+        public State AppointmentInitialized { get; private set; } 
+        public State Confirmed { get; private set; } 
+        public State Canceled { get; private set; } 
+        public State Completed { get; private set; } 
+        public State Faulted { get; private set; } 
 
         // --- EVENTI ---
         // Ogni Event corrisponde a un messaggio MassTransit che la saga può ricevere.
         public Event<IBookAppointmentCommand> BookAppointmentCommandReceived { get; private set; }
         public Event<ITimeSlotReservedEvent> TimeSlotReserved { get; private set; }
         public Event<ITimeSlotReservationFailedEvent> TimeSlotReservationFailed { get; private set; }
-        // Non pubblichiamo un AppointmentInitializedEvent dalla saga a sé stessa,
-        // ma la saga agisce dopo la chiamata al Grain.
+      
         public Event<IConfirmAppointmentCommand> ConfirmAppointmentCommandReceived { get; private set; }
         public Event<ICancelAppointmentCommand> CancelAppointmentCommandReceived { get; private set; }
         public Event<IMarkAppointmentCompletedCommand> MarkAppointmentCompletedCommandReceived { get; private set; }
@@ -41,15 +40,11 @@ namespace DistributedAppExamUnicam.Sagas
 
             // --- Correlazione degli Eventi con le istanze della Saga ---
             // Ogni evento deve "sapere" a quale istanza di saga appartiene.
-            // Il primo evento (BookAppointmentCommandReceived) crea una nuova istanza se non esiste.
+
             Event(() => BookAppointmentCommandReceived, x => x.CorrelateById(context => context.Message.CorrelationId));
-            // Gli altri eventi si correlano all'ID della saga (che è il CorrelationId del booking process).
             Event(() => TimeSlotReserved, x => x.CorrelateById(context => context.Message.CorrelationId));
             Event(() => TimeSlotReservationFailed, x => x.CorrelateById(context => context.Message.CorrelationId));
-            // Per i comandi di gestione (Confirm, Cancel, Complete, Delete) che potrebbero arrivare anche direttamente
-            // con l'AppointmentId, correlali all'AppointmentId stesso.
-            // Questo significa che una saga può essere avviata da BookAppointmentCommand, ma anche trovata/manipolata
-            // da altri comandi usando l'AppointmentId come correlazione. Questo semplifica la gestione.
+            
             Event(() => ConfirmAppointmentCommandReceived, x => x.CorrelateById(context => context.Message.CorrelationId));
             Event(() => CancelAppointmentCommandReceived, x => x.CorrelateById(context => context.Message.CorrelationId));
             Event(() => MarkAppointmentCompletedCommandReceived, x => x.CorrelateById(context => context.Message.CorrelationId));
@@ -105,8 +100,6 @@ namespace DistributedAppExamUnicam.Sagas
                         );
                         Console.WriteLine($"Saga {context.Saga.CorrelationId}: AppointmentGrain initialized for AppointmentId: {context.Saga.AppointmentId}. Transitioning to AppointmentInitialized.");
 
-                        // Opzionale: Pubblica un evento che l'appuntamento è stato inizializzato.
-                        // Questo evento potrebbe essere consumato da servizi di notifica o logging.
                         await context.Publish(new AppointmentInitializedEvent
                         {
                             CorrelationId = context.Saga.CorrelationId,
@@ -129,8 +122,8 @@ namespace DistributedAppExamUnicam.Sagas
                         context.Saga.UpdatedTimestamp = DateTime.UtcNow;
                         Console.WriteLine($"Saga {context.Saga.CorrelationId}: Slot reservation failed for AppointmentId: {context.Saga.AppointmentId}. Reason: {context.Message.Reason}. Transitioning to Faulted.");
 
-                        // Notifica il fallimento al mondo esterno (es. un consumer che notifica il client)
-                        context.Publish(new AppointmentCanceledEvent // Puoi creare un AppointmentBookingFailedEvent più specifico
+                        // Notifica il fallimento al mondo esterno 
+                        context.Publish(new AppointmentCanceledEvent 
                         {
                             AppointmentId = context.Saga.AppointmentId,
                             CorrelationId = context.Saga.CorrelationId,
@@ -141,18 +134,15 @@ namespace DistributedAppExamUnicam.Sagas
             );
 
             // 3. Stato: Appuntamento Inizializzato (in attesa di conferma finale)
-            // Questo stato serve se c'è un passaggio aggiuntivo prima della conferma definitiva (es. pagamento)
             During(AppointmentInitialized,
                 When(ConfirmAppointmentCommandReceived)
                     .ThenAsync(async context =>
                     {
-                        // Chiama il metodo Confirm sul Grain dell'appuntamento
                         var appointmentGrain = _grainFactory.GetGrain<IAppointmentGrain>(context.Saga.AppointmentId);
                         await appointmentGrain.Confirm();
                         context.Saga.UpdatedTimestamp = DateTime.UtcNow;
                         Console.WriteLine($"Saga {context.Saga.CorrelationId}: Appointment {context.Saga.AppointmentId} confirmed. Transitioning to Confirmed.");
 
-                        // Pubblica un evento di conferma per altri servizi (notifiche, analytics, etc.)
                         await context.Publish(new AppointmentConfirmedEvent
                         {
                             AppointmentId = context.Saga.AppointmentId,
@@ -199,28 +189,30 @@ namespace DistributedAppExamUnicam.Sagas
                     .TransitionTo(Canceled)
             );
 
-            // 5. Gestione dell'eliminazione (potrebbe avvenire da qualsiasi stato finale o confermato)
-            // L'eliminazione è un'operazione distruttiva e la saga può semplicemente "finalizzarsi"
-            // dopo averla orchestrata.
-            During(Confirmed, Canceled, Completed, Faulted, // Puoi decidere da quali stati permettere l'eliminazione
+           
+            During(Confirmed, Canceled, Completed, Faulted, 
                 When(DeleteAppointmentCommandReceived)
                     .ThenAsync(async context =>
                     {
                         var appointmentGrain = _grainFactory.GetGrain<IAppointmentGrain>(context.Saga.AppointmentId);
-                        // In un sistema reale, potresti voler archiviare l'appuntamento invece di eliminarlo
-                        // per audit trail. Per ora, useremo ClearStateAsync per rimuoverlo.
+                        
                         await appointmentGrain.ClearStateAsync();
                         Console.WriteLine($"Saga {context.Saga.CorrelationId}: Appointment {context.Saga.AppointmentId} state cleared (deleted).");
-                        // Potresti voler pubblicare un AppointmentDeletedEvent qui
+                        /
+                         context.Publish(new AppointmentDeletedEvent
+                         {
+                             AppointmentId = context.Saga.AppointmentId,
+                             CorrelationId = context.Saga.CorrelationId,
+                             
+                         });
                     })
-                    .Finalize() // Marca la saga come completata e la rimuove dal repository
+                    .Finalize() 
             );
 
-            // La saga è considerata completata quando raggiunge uno stato finale
             SetCompletedWhenFinalized();
         }
 
-        // --- Metodo helper per la logica di annullamento (riutilizzabile) ---
+      
         private async Task HandleAppointmentCancellation(
             BookingState sagaState,
             Guid appointmentId,
@@ -228,11 +220,9 @@ namespace DistributedAppExamUnicam.Sagas
             BehaviorContext<BookingState, ICancelAppointmentCommand> context)
         {
             var appointmentGrain = _grainFactory.GetGrain<IAppointmentGrain>(appointmentId);
-            await appointmentGrain.Cancel(); // Imposta lo stato dell'appuntamento a Canceled
+            await appointmentGrain.Cancel(); 
 
-            // Se lo slot era stato riservato, rilascialo
-            // Nota: potresti voler controllare lo stato della prenotazione dello slot prima di rilasciarlo,
-            // per evitare di rilasciare uno slot già liberato o mai riservato.
+     
             var doctorGrain = _grainFactory.GetGrain<IDoctorGrain>(sagaState.DoctorId);
             await doctorGrain.ReleaseTimeSlot(sagaState.SlotId, sagaState.AppointmentId);
 

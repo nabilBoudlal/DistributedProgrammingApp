@@ -8,8 +8,7 @@
 
 
 ---
-#
-# === SCENARIO DI TEST 1: GESTIONE PAZIENTI ===
+## === SCENARIO DI TEST 1: GESTIONE PAZIENTI ===
 #
 
 ### 1.1 Crea un nuovo paziente
@@ -27,9 +26,8 @@ Accept: application/json
 
 
 ---
-#
-# === SCENARIO DI TEST 2: GESTIONE DOTTORI E DISPONIBILITÀ ===
-#
+### === SCENARIO DI TEST 2: GESTIONE DOTTORI E DISPONIBILITÀ ===
+
 
 ### 2.1 Crea un nuovo dottore
 POST {{baseUrl}}/api/Doctor
@@ -72,17 +70,15 @@ Content-Type: application/json
 [
   {
     "id": "{{slot_id}}",
-    "startTime": "2025-08-15T09:00:00Z",
-    "endTime": "2025-08-15T09:30:00Z",
-    "isReserved": false,
-    "patientId": null
+    "start": "2025-08-15T09:00:00Z",
+    "duration": "01:00:00",
+    "isReserved": false
   },
   {
     "id": "77777777-8888-9999-aaaa-bbbbbbbbbbbb",
-    "startTime": "2025-08-15T09:30:00Z",
-    "endTime": "2025-08-15T10:00:00Z",
-    "isReserved": false,
-    "patientId": null
+    "start": "2025-08-15T10:30:00Z",
+    "duration": "00:30:00",
+    "isReserved": false
   }
 ]
 
@@ -134,9 +130,7 @@ Accept: application/json
 
 
 ---
-#
-# === SCENARIO DI TEST 4: OPERAZIONI DI STATO DELL'APPUNTAMENTO (Cancel & Complete) ===
-#
+### === SCENARIO DI TEST 4: OPERAZIONI DI STATO DELL'APPUNTAMENTO (Cancel & Complete) ===
 
 ### 4.1 Annulla l'appuntamento
 POST {{baseUrl}}/api/Appointments/{{appointment_id}}/cancel
@@ -166,9 +160,8 @@ Accept: application/json
 
 
 ---
-#
-# === SCENARIO DI TEST 5: ELIMINAZIONE FINALE DELL'APPUNTAMENTO ===
-#
+### === SCENARIO DI TEST 5: ELIMINAZIONE FINALE DELL'APPUNTAMENTO ===
+
 
 ### 5.1 Elimina l'appuntamento
 DELETE {{baseUrl}}/api/Appointments/{{appointment_id}}

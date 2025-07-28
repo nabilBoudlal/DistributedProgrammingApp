@@ -116,7 +116,7 @@ namespace DistributedAppExamUnicam.Controllers
 
             var doctorGrain = _grainFactory.GetGrain<IDoctorGrain>(doctorId);
             await doctorGrain.DefineAvailability(slot);
-            return Ok();
+            return Ok(slot);
         }
 
        
@@ -150,7 +150,7 @@ namespace DistributedAppExamUnicam.Controllers
         public string Specialization { get; set; } = string.Empty; 
     }
 
-    // A DTO for updating only the name
+   
     public class DoctorNameUpdateDTO
     {
         public string Name { get; set; } = string.Empty;

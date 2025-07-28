@@ -43,7 +43,7 @@ namespace DistributedAppExamUnicam.Grains
                 {
                     newSlot.Id = Guid.NewGuid();
                 }
-                newSlot.IsReserved = false; // Always set to false when defining/redefining availability
+                newSlot.IsReserved = false; 
                 newSlot.PatientId = null;
                 newSlot.AppointmentId = null;
 
@@ -86,7 +86,7 @@ namespace DistributedAppExamUnicam.Grains
 
             if (slot.IsReserved)
             {
-                // Important for idempotency: if already reserved by *this specific appointment*, it's a success.
+                
                 // This prevents issues if the saga retries the reservation command.
                 if (slot.AppointmentId == appointmentId && slot.PatientId == patientId)
                 {
@@ -95,13 +95,10 @@ namespace DistributedAppExamUnicam.Grains
                 return ReserveTimeSlotResult.AlreadyReserved;
             }
 
-            // Check for potential overlaps if you have a complex scheduling system
-            // This example doesn't include overlap logic, but it's where you'd put it.
-            // For now, it just checks the specific slotId.
 
             slot.IsReserved = true;
             slot.PatientId = patientId;
-            slot.AppointmentId = appointmentId; // Store the appointment ID that reserved this slot
+            slot.AppointmentId = appointmentId; 
             await _state.WriteStateAsync();
             return ReserveTimeSlotResult.Success;
         }
@@ -112,8 +109,7 @@ namespace DistributedAppExamUnicam.Grains
             var slot = _state.State.Availability
                 .FirstOrDefault(s => s.Id == slotId);
 
-            // Only release if the slot exists, is reserved, and was reserved by *this* specific appointment.
-            // This prevents other legitimate bookings from being accidentally released.
+       
             if (slot != null && slot.IsReserved && slot.AppointmentId == appointmentId)
             {
                 slot.IsReserved = false;
@@ -121,8 +117,7 @@ namespace DistributedAppExamUnicam.Grains
                 slot.AppointmentId = null;
                 await _state.WriteStateAsync();
             }
-            // If the slot doesn't exist, isn't reserved, or was reserved by another appointment,
-            // we simply do nothing. This makes the operation idempotent and safe for retries.
+            
         }
 
         public Task<List<TimeSlot>> GetAllTimeSlots()

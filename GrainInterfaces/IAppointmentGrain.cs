@@ -60,6 +60,6 @@ namespace DistributedAppExamUnicam.GrainInterfaces
         public string Status { get; set; } = string.Empty;
 
         [Id(8)]
-        public Guid id { get; set; } // It's good you added this, but ensure consistency
+        public Guid id { get; set; } 
     }
 }

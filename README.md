@@ -44,7 +44,6 @@ The system consists of the following main components:
       * A message broker used by MassTransit for asynchronous communication between the API, the Saga, and the Grains/Consumers. It ensures message reliability and durability.
 
 ### Simplified Architectural Diagram
-### Simplified Architectural Diagram
 
 ![Architectural Diagram](docs/images/architecture_diagram.png)
 

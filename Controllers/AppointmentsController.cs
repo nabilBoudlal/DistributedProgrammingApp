@@ -1,117 +1,222 @@
-using DistributedAppExamUnicam.GrainInterfaces;
-using DistributedAppExamUnicam.Messages;
-using Event;
-using GrainInterfaces;
-using MassTransit;
+using DistributedAppExamUnicam.GrainInterfaces; 
+using DistributedAppExamUnicam.Messages; 
+using Grains; 
+using MassTransit; 
 using Microsoft.AspNetCore.Mvc;
-using Orleans;
-using System.Reflection;
-
+using Orleans; 
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace DistributedAppExamUnicam.Controllers
 {
-	[ApiController]
-	[Route("[controller]")]
-	public class AppointmentsController : ControllerBase
-	{
-		private readonly IGrainFactory _grainFactory;
-		private readonly IPublishEndpoint _publishEndpoint;
-
-		public AppointmentsController(IGrainFactory grainFactory, IPublishEndpoint publishEndpoint)
-		{
-			_grainFactory = grainFactory;
-			_publishEndpoint = publishEndpoint;
-		}
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] AppointmentDTO dto)
-        {
-            var appointment = _grainFactory.GetGrain<IAppointmentGrain>(id);
-            await appointment.SetDetails(dto.Title, dto.Date, dto.Description, dto.UserId); 
-
-            var notificationGrain = _grainFactory.
-                GetGrain<INotificationGrain>(Guid.Parse("21a57cef-59b0-47f4-9708-9fdfa37d47e2"));
-            await notificationGrain.ReceiveEvent(new Event.AppointmentCreatedEvent(id, dto.Title, dto.Date));
-
-            await _publishEndpoint.Publish(new AppointmentCreatedMessage
-            {
-                Id = id,
-                Title = dto.Title,
-                Date = dto.Date,
-                UserId = dto.UserId.ToString()
-            });
-            return Ok();
-        }
-
-
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] AppointmentDTO dto)
-        {
-            var id = dto.AppointmentId.HasValue 
-                && dto.AppointmentId.Value 
-                 != Guid.Empty
-                  ? dto.AppointmentId.Value
-                     : Guid.NewGuid();
-            var appointment = _grainFactory.GetGrain<IAppointmentGrain>(id);
-            await appointment.SetDetails(dto.Title, dto.Date, dto.Description, dto.UserId);
-
-            // Aggiorna anche il UserGrain
-            var userGrain = _grainFactory.GetGrain<IUserGrain>(dto.UserId);
-            await userGrain.AddAppointmentAsync(id);
-
-            // Invia evento di notifica
-            var notificationGrain = _grainFactory.GetGrain<INotificationGrain>(
-                Guid.Parse("21a57cef-59b0-47f4-9708-9fdfa37d47e2"));
-            await notificationGrain.ReceiveEvent(new AppointmentCreatedEvent(id, dto.Title, dto.Date));
-
-            // Invia anche su bus MassTransit
-            await _publishEndpoint.Publish(new AppointmentCreatedMessage
-            {
-                Id = id,
-                AppointmentId = id,
-                Title = dto.Title,
-                Date = dto.Date,
-                UserId = dto.UserId.ToString()
-            });
-
-            return Ok(new { appointmentId = id });
-        }
-
-
-
-
-        [HttpGet("{id}")]
-		public async Task<IActionResult> Get(Guid id)
-		{
-			var appointment = _grainFactory.GetGrain<IAppointmentGrain>(id);
-			var (title, date, description, userId) = await appointment.GetDetails();
-			return Ok(new { id, title, date, description, userId});
-		}
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
-        {
-            var appointment = _grainFactory.GetGrain<IAppointmentGrain>(id);
-
-            var (title, date, description, userId) = await appointment.GetDetails();
-
-            await appointment.ClearStateAsync();
-
-            // Rimuovi l'appuntamento dalla lista dell'utente
-            var userGrain = _grainFactory.GetGrain<IUserGrain>(userId);
-            await userGrain.RemoveAppointmentAsync(id);
-
-            await _publishEndpoint.Publish(new AppointmentDeletedMessage
-            {
-                Id = id,
-                Title = title,
-                Date = DateTime.UtcNow
-            });
-
-            return Ok(new { message = $"Appointment {id} deleted" });
-        }
-
+    public class BookingAppointmentRequestDTO
+    {
+        public Guid PatientId { get; set; }
+        public Guid DoctorId { get; set; }
+        public Guid SlotId { get; set; } 
+        public DateTime AppointmentTime { get; set; }
+        public Guid AppointmentId { get; set; }
+        public Guid CorrelationId { get; set; }
+        public TimeSpan Duration { get; set; }
+        public string ReasonForVisit { get; set; } = string.Empty;
     }
 
+    public class ConfirmAppointmentRequest
+    {
+        public Guid CorrelationId { get; set; } 
+        public Guid AppointmentId { get; set; }
+    }
 
+    public class CancelAppointmentRequest
+    {
+        public Guid CorrelationId { get; set; }
+        public Guid AppointmentId { get; set; }
+    }
+
+    public class DeleteAppointmentRequest
+    {
+        public Guid CorrelationId { get; set; }
+        public Guid AppointmentId { get; set; }
+    }
+
+    public class CompleteAppointmentRequest
+    {
+        public Guid CorrelationId { get; set; }
+        public Guid AppointmentId { get; set; }
+    }
+
+  
+    [ApiController]
+    [Route("api/[controller]")] 
+    public class AppointmentsController : ControllerBase
+    {
+        private readonly IGrainFactory _grainFactory;
+        private readonly IPublishEndpoint _publishEndpoint;
+
+        public AppointmentsController(IGrainFactory grainFactory, IPublishEndpoint publishEndpoint)
+        {
+            _grainFactory = grainFactory;
+            _publishEndpoint = publishEndpoint;
+        }
+
+        
+        /// Avvia il processo di prenotazione per un nuovo appuntamento.
+        [HttpPost("book")]
+        public async Task<IActionResult> BookAppointment([FromBody] BookingAppointmentRequestDTO request)
+        {
+
+            Guid correlationId;
+            Guid appointmentId;
+
+            if (request.PatientId == Guid.Empty || request.DoctorId == Guid.Empty || request.SlotId == Guid.Empty)
+            {
+                return BadRequest("PatientId, DoctorId, and SlotId must be provided.");
+            }
+            if (request.AppointmentTime == default || request.Duration == default || request.Duration <= TimeSpan.Zero)
+            {
+                return BadRequest("Valid AppointmentTime and Duration must be provided.");
+            }
+
+            if (request.AppointmentId == Guid.Empty)
+            {
+                appointmentId = Guid.NewGuid(); // ID per la saga (il processo di booking)
+            }
+            else
+            {
+                appointmentId = request.AppointmentId;
+            }
+            
+            if (request.CorrelationId == Guid.Empty)
+            {
+                correlationId = Guid.NewGuid(); // ID unico per l'istanza specifica dell'appuntamento (il Grain)
+            }
+            else
+            {
+                correlationId = request.CorrelationId;
+            }
+
+            
+            
+
+            await _publishEndpoint.Publish<IBookAppointmentCommand>(new BookAppointmentCommand 
+            {
+                CorrelationId = correlationId,
+                AppointmentId = appointmentId,
+                PatientId = request.PatientId,
+                DoctorId = request.DoctorId,
+                SlotId = request.SlotId,
+                AppointmentTime = request.AppointmentTime,
+                Duration = request.Duration,
+                ReasonForVisit = request.ReasonForVisit
+            });
+
+            return Accepted(new { AppointmentId = appointmentId, BookingCorrelationId = correlationId, Message = "Appointment booking initiated." });
+        }
+
+       
+        /// Recupera i dettagli di uno specifico appuntamento.
+        [HttpGet("{appointmentId}")]
+        public async Task<IActionResult> GetAppointmentDetails(Guid appointmentId)
+        {
+            var appointmentGrain = _grainFactory.GetGrain<IAppointmentGrain>(appointmentId);
+            var state = await appointmentGrain.GetAppointmentState();
+
+            Console.Out.WriteLine(state.ToString());
+
+            if (state == null || state.PatientId == Guid.Empty) 
+            {
+                return NotFound($"Appointment with ID {appointmentId} not found or not initialized.");
+            }
+
+            return Ok(new AppointmentDetailsDTO
+            {
+                id = appointmentId,
+                PatientId = state.PatientId,
+                DoctorId = state.DoctorId,
+                SlotId = state.SlotId,
+                AppointmentTime = state.AppointmentTime,
+                Duration = state.Duration,
+                ReasonForVisit = state.ReasonForVisit,
+                Status = state.Status.ToString(), // Conversione a stringa
+                CorrelationId = (Guid) state.CorrelationId
+            });
+        }
+
+       
+        /// Invia un comando per confermare un appuntamento.
+        [HttpPost("{appointmentId}/confirm")]
+        public async Task<IActionResult> ConfirmAppointment(Guid appointmentId, [FromBody] ConfirmAppointmentRequest request)
+        {
+            // Verificare che request.CorrelationId non sia Guid.Empty
+            if (request.CorrelationId == Guid.Empty)
+            {
+                return BadRequest("CorrelationId is required for confirmation.");
+            }
+
+            // Pubblica il comando con il CorrelationId corretto
+            await _publishEndpoint.Publish<IConfirmAppointmentCommand>(new ConfirmAppointmentCommand
+            {
+                AppointmentId = appointmentId,
+                CorrelationId = request.CorrelationId 
+            });
+
+            return Accepted();
+        }
+
+
+        /// Invia un comando per annullare un appuntamento.
+        [HttpPost("{appointmentId}/cancel")]
+        public async Task<IActionResult> CancelAppointment(Guid appointmentId, [FromBody] CancelAppointmentRequest request)
+        {
+            // Verificare che request.CorrelationId non sia Guid.Empty
+            if (request.CorrelationId == Guid.Empty)
+            {
+                return BadRequest("CorrelationId is required for confirmation.");
+            }
+            await _publishEndpoint.Publish<ICancelAppointmentCommand>(new CancelAppointmentCommand {
+                AppointmentId = appointmentId, 
+                CorrelationId = request.CorrelationId
+            });
+            return Accepted($"Cancellation command for appointment {appointmentId} sent.");
+        }
+
+       
+        /// Invia un comando per marcare un appuntamento come completato.
+        [HttpPost("{appointmentId}/complete")]
+        public async Task<IActionResult> CompleteAppointment(Guid appointmentId, [FromBody] CompleteAppointmentRequest request)
+        {
+            // Verificare che request.CorrelationId non sia Guid.Empty
+            if (request.CorrelationId == Guid.Empty)
+            {
+                return BadRequest("CorrelationId is required for confirmation.");
+            }
+
+            await _publishEndpoint.Publish<IMarkAppointmentCompletedCommand>(new MarkAppointmentCompletedCommand 
+            { 
+                AppointmentId = appointmentId ,
+                CorrelationId = request.CorrelationId
+            });
+            return Accepted($"Completion command for appointment {appointmentId} sent.");
+        }
+
+
+
+        /// Invia un comando per avviare la cancellazione/eliminazione di un appuntamento.
+        [HttpDelete("{appointmentId}")]
+        public async Task<IActionResult> DeleteAppointment(Guid appointmentId, [FromBody] DeleteAppointmentRequest request)
+        {
+            // Verificare che request.CorrelationId non sia Guid.Empty
+            if (request.CorrelationId == Guid.Empty)
+            {
+                return BadRequest("CorrelationId is required for confirmation.");
+            }
+
+            await _publishEndpoint.Publish<IDeleteAppointmentCommand>(new DeleteAppointmentCommand { 
+                AppointmentId = appointmentId,
+                CorrelationId = request.CorrelationId
+            });
+            return Accepted(new { message = $"Deletion command for appointment {appointmentId} sent." });
+        }
+    }
 }

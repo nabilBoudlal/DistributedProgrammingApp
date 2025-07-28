@@ -16,11 +16,11 @@ namespace DistributedAppExamUnicam.Messages
         {
             var message = context.Message;
 
-            Console.WriteLine($"[Consumer] Appointment received: {message.Title} for UserId {message.UserId}");
+            Console.WriteLine($"[Consumer] Appointment received: {message.Title} for PatientId {message.UserId}");
 
             if (!Guid.TryParse(message.UserId, out var userGuid))
             {
-                Console.WriteLine("[Consumer] Invalid UserId in message.");
+                Console.WriteLine("[Consumer] Invalid PatientId in message.");
                 return;
             }
 
@@ -30,7 +30,7 @@ namespace DistributedAppExamUnicam.Messages
                 return;
             }
 
-            var userGrain = _grainFactory.GetGrain<IUserGrain>(userGuid);
+            var userGrain = _grainFactory.GetGrain<IPatientGrain>(userGuid);
             await userGrain.AddAppointmentAsync(message.AppointmentId.Value);
         }
 

@@ -1,9 +1,10 @@
+using Grains;
 using Orleans;
 using System.Threading.Tasks;
 
 namespace GrainInterfaces
 {
-    public interface IUserGrain : IGrainWithGuidKey
+    public interface IPatientGrain : IGrainWithGuidKey
     {
         Task<string> GetNameAsync();
         Task SetNameAsync(string name);
@@ -13,7 +14,6 @@ namespace GrainInterfaces
         Task<List<Guid>> GetAppointmentsAsync();
 
         Task RemoveAppointmentAsync(Guid appointmentId);
-
 
     }
 }

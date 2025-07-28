@@ -1,6 +1,78 @@
 @DistributedAppExamUnicam_HostAddress = http://localhost:5055
+@Content_Type = application/json
 
-GET {{DistributedAppExamUnicam_HostAddress}}/weatherforecast/
-Accept: application/json
+// Variabili per i test (genera nuovi GUID e timestamp per ogni esecuzione logica)
+@patientId = {{ $guid }}
+@doctorId = {{ $guid }}
+@slotId = {{ $guid }}
+@appointmentTime = 2025-08-01T10:00:00.000Z
+@duration = 01:00:00
+
+// Variabili che verranno assegnate dalle risposte delle richieste
+@newAppointmentId =
+@bookingCorrelationId =
+
+###
+# 1. Get Weather Forecast (Test di base per verificare che l'API sia attiva)
+GET {{DistributedAppExamUnicam_HostAddress}}/weatherforecast
+Accept: {{Content_Type}}
+
+###
+
+# 2. Book an Appointment
+# Avvia il processo di prenotazione per un nuovo appuntamento.
+POST {{DistributedAppExamUnicam_HostAddress}}/api/Appointments/book
+Content-Type: {{Content_Type}}
+Accept: {{Content_Type}}
+
+{
+  "patientId": "{{patientId}}",
+  "doctorId": "{{doctorId}}",
+  "slotId": "{{slotId}}",
+  "appointmentTime": "{{appointmentTime}}",
+  "duration": "{{duration}}",
+  "reasonForVisit": "Routine check-up"
+}
+
+
+
+
+
+@name bookAppointmentRequest
+@responseHeaders
+@responseBody
+> {%
+    client.global.set("newAppointmentId", response.body.AppointmentId);
+    client.global.set("bookingCorrelationId", response.body.BookingCorrelationId);
+    client.log("New Appointment ID: " + response.body.AppointmentId);
+    client.log("Booking Correlation ID: " + response.body.BookingCorrelationId);
+%}
+
+###
+
+# 3. Get Appointment Details (after booking)
+# Recupera i dettagli dell'appuntamento appena prenotato.
+GET {{DistributedAppExamUnicam_HostAddress}}/api/Appointments/{{newAppointmentId}}
+Accept: {{Content_Type}}
+
+###
+
+# 4. Confirm an Appointment
+# Invia un comando per confermare l'appuntamento.
+POST {{DistributedAppExamUnicam_HostAddress}}/api/Appointments/{{newAppointmentId}}/confirm
+Content-Type: {{Content_Type}}
+Accept: {{Content_Type}}
+
+{
+  "correlationId": "{{bookingCorrelationId}}",
+  "appointmentId": "{{newAppointmentId}}"
+}
+
+###
+
+# 5. Get Appointment Details (after confirmation)
+# Controlla i dettagli dopo la conferma per vedere lo stato aggiornato.
+GET {{DistributedAppExamUnicam_HostAddress}}/api/Appointments/{{newAppointmentId}}
+Accept: {{Content_Type}}
 
 ###

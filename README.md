@@ -44,48 +44,9 @@ The system consists of the following main components:
       * A message broker used by MassTransit for asynchronous communication between the API, the Saga, and the Grains/Consumers. It ensures message reliability and durability.
 
 ### Simplified Architectural Diagram
+### Simplified Architectural Diagram
 
-```mermaid
-graph TD
-    subgraph Client
-        HTTP_Client[HTTP Client / Postman / REST Client]
-    end
-
-    subgraph API Gateway
-        API_App[API Web App (ASP.NET Core)]
-    end
-
-    subgraph Orleans Host (Silo)
-        direction LR
-        PatientGrain[PatientGrain]
-        DoctorGrain[DoctorGrain]
-        AppointmentGrain[AppointmentGrain]
-        MassTransitConsumers[MassTransit Consumers (interact with Grains)]
-    end
-
-    subgraph Messaging Infrastructure
-        RabbitMQ[RabbitMQ]
-    end
-
-    subgraph Saga Service
-        SagaApp[MassTransit Saga (AppointmentBookingSaga)]
-    end
-
-    subgraph Persistence Layer
-        Redis[Redis (for Grain State & Saga State)]
-    end
-
-    HTTP_Client -- HTTP Requests --> API_App
-    API_App -- GET Requests --> OrleansHost
-    API_App -- Publish Commands (e.g., IBookAppointmentCommand) --> RabbitMQ
-    RabbitMQ -- Consume Commands --> SagaApp
-    SagaApp -- Interact with Grains (via GrainFactory) --> OrleansHost
-    OrleansHost -- Read/Write State --> Redis
-    SagaApp -- Read/Write State --> Redis
-    SagaApp -- Publish Events --> RabbitMQ
-    OrleansHost -- Publish Events (Optional) --> RabbitMQ
-    RabbitMQ -- Deliver Events --> API_App (for notifications, etc. - if implemented)
-```
+![Architectural Diagram](docs/images/architecture_diagram.png)
 
 ## Prerequisites
 
